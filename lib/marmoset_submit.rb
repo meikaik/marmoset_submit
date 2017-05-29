@@ -5,7 +5,7 @@ require 'highline'
 require 'choice'
 require 'nokogiri'
 
-class Marmoset
+class MarmosetSubmit
   class InvalidLogin < StandardError; end
   class CourseNotFound < StandardError; end
   class QuestionNotFound < StandardError; end
@@ -32,12 +32,12 @@ class Marmoset
   def login
     if @username == nil
       print 'Username: '
-      @username = gets.chomp
+      @username = STDIN.gets.chomp
     end
     if @password == nil
       print 'Password: '
       #@password = STDIN.noecho(&:gets).chomp
-      @password = gets.chomp
+      @password = STDIN.gets.chomp
     end
 
     puts "Logging in as user #{@username}"
@@ -72,7 +72,7 @@ class Marmoset
         puts course_link.text.strip.chomp ':'
       end
       puts 'Please enter the Course ID you would like to submit your assignment to (eg CS241):'
-      @course = gets.chomp
+      @course = STDIN.gets.chomp
     end
 
     @course = @course.upcase
@@ -82,8 +82,6 @@ class Marmoset
     end
 
     @course_page = course_link.click
-
-    puts "Selecting #{@course}..."
 
     unless @agent.page.title == "#{@course} Submit Server"
       raise CourseNotFound
@@ -100,10 +98,8 @@ class Marmoset
   def select_question
     if @question == nil
       print 'Question (eg A3P2): '
-      @question = gets.chomp
+      @question = STDIN.gets.chomp
     end
-
-    puts "Selecting #{@question}..."
 
     @question = @question.upcase
 
@@ -131,7 +127,7 @@ class Marmoset
 
     if @filename.nil?
       print 'Filename: '
-      @filename = gets.chomp
+      @filename = STDIN.gets.chomp
     end
 
     puts "Submitting #{@question}..."
@@ -140,19 +136,52 @@ class Marmoset
     form.file_uploads.first.file_name = @filename
     @agent.submit(form)
 
-    puts "Congratulations, #{@question} has been successfully uploaded to Marmoset."
+    puts "#{@question} has been successfully uploaded to Marmoset."
 
   rescue Mechanize::ResponseCodeError
     puts "File #{@question} submission failed. Please try again!"
     exit
   end
 
-  def public_test
+  def view_public_test
+    question_overview = @base_url + @question_overview_hash[@question].href
+    public_test_score = 'nottestedyet'
+    while public_test_score == 'nottestedyet'
+      @agent.get question_overview
+      html = Nokogiri::XML @agent.page.body
+      public_test_score = html.xpath('//tr[2]/td[3]').text.gsub!(/[^0-9A-Za-z\/]/, '')
+      sleep 3
+    end
+
+    if public_test_score == 'didnotcompile'
+        puts "#{@question} did not compile on the UW student environment."
+    else # there is a score for the public test
+      puts "Your public test score for #{@question} is #{public_test_score}"
+      score_array = public_test_score.split'/'
+      if score_array[0] != score_array[1]
+        print_long_error
+      else
+        puts 'Would you like to release test this submission? (Y/N)'
+        answer = STDIN.gets.chomp
+        if answer.upcase == 'Y'
+        release_test
+        end
+      end
+    end
+  end
+
+  def print_long_error
     question_overview = @base_url + @question_overview_hash[@question].href
     @agent.get question_overview
-    html = Nokogiri::HTML(@agent.page.content)
-    asd = html.xpath('/html/body/table/tbody/tr[2]/td[3]')
-    puts asd
+    view_links = @agent.page.links.find_all{|link| link.text.include? 'view'}
+    view_links.first.click
+    html = Nokogiri::XML @agent.page.body
+    error = html.xpath('//tr[2]/td[7]/span').text.gsub!(/[^0-9A-Za-z\/ ]/, '')
+    puts 'Error: ', error
+  end
+
+  def release_test
+
   end
 
   def token_overview
@@ -194,7 +223,7 @@ Choice.options do
   end
 
   option :question do
-    short   '-a'
+    short   '-q'
     long    '--question=QUESTION'
     desc    'Marmoset submission question name (eg A3P2 or A3Q2)'
     default nil
@@ -215,9 +244,9 @@ Choice.options do
   end
 end
 
-client = Marmoset.new(Choice.choices)
+client = MarmosetSubmit.new(Choice.choices)
 client.login
 client.select_course
 client.select_question
-client.submit_question
-client.public_test
+#client.submit_question
+client.view_public_test
