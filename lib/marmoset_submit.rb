@@ -4,11 +4,13 @@ require 'mechanize'
 require 'highline'
 require 'choice'
 require 'nokogiri'
+require_relative 'cli_options'
 
 class MarmosetSubmit
   class InvalidLogin < StandardError; end
   class CourseNotFound < StandardError; end
   class QuestionNotFound < StandardError; end
+  class NoReleaseTokens < StandardError; end
 
   def initialize(args)
     @agent                  = Mechanize.new
@@ -149,7 +151,7 @@ class MarmosetSubmit
     while public_test_score == 'nottestedyet'
       @agent.get question_overview
       html = Nokogiri::XML @agent.page.body
-      public_test_score = html.xpath('//tr[2]/td[3]').text.gsub!(/[^0-9A-Za-z\/]/, '')
+      public_test_score = html.xpath('//tr[1]/td[3]').text.gsub!(/[^0-9A-Za-z\/]/, '')
       sleep 3
     end
 
@@ -161,11 +163,7 @@ class MarmosetSubmit
       if score_array[0] != score_array[1]
         print_long_error
       else
-        puts 'Would you like to release test this submission? (Y/N)'
-        answer = STDIN.gets.chomp
-        if answer.upcase == 'Y'
         release_test
-        end
       end
     end
   end
@@ -181,67 +179,56 @@ class MarmosetSubmit
   end
 
   def release_test
+    question_stats = get_question_stats
+    puts "Would you like to release test this submission?",
+         "You have #{question_stats['release_tokens']} tokens left (Y/N)"
+    answer = STDIN.gets.chomp
+    exit if answer.upcase = 'N'
+    raise NoReleaseTokens if question_stats['release_tokens'] == 0
 
+  rescue NoReleaseTokens
+    puts "Sorry, you have 0 release tokens for #{@question}. Your tokens will regenerate in:"
+    puts question_stats['release_token_regeneration']
   end
 
   def token_overview
 
   end
 
+  # returns Hash{
+  #              public_test:
+  #              release_test:
+  #              release_tokens:
+  #              release_token_regeneration: []
+  # }
+  def get_question_stats
+    question_stats = {}
+    question_overview = @base_url + @question_overview_hash[@question].href
+    @agent.get question_overview
+    view_links = @agent.page.links.find_all{|link| link.text.include? 'view'}
+    submission_page = view_links.first.click
+    html = submission_page.body
+    html_nokogiri = Nokogiri::HTML submission_page.body
+
+    # regexp match to pull scores
+    public_test_score          = html[/[0-9]\/[0-9]\s*points for public test cases./]
+    release_test_score         = html[/[0-9]\/[0-9]\s*points for release tests./]
+    release_tokens             = html[/[0-9]\s*release\s*tokens\s*/]
+    release_token_regeneration = html_nokogiri.xpath('//ul').text.gsub!(/[^0-9A-Za-z ]/, '')
+
+    question_stats['public_test']                = public_test_score[/[0-9]\/[0-9]/] if public_test_score
+    question_stats['release_test']               = release_test_score[/[0-9]\/[0-9]/] if release_test_score
+    question_stats['release_tokens']             = release_tokens[/[0-9]/] if release_tokens
+    question_stats['release_token_regeneration'] = release_token_regeneration
+
+    return question_stats
+  end
+
+
   def tokens(question)
 
   end
 
-end
-
-Choice.options do
-  option :username do
-    short   '-u'
-    long    '--username=USERNAME'
-    desc    'Your Quest userid (eg mkkoh)'
-    default nil
-  end
-
-  option :password do
-    short   '-p'
-    long    '--password=PASSWORD'
-    desc    'Your Quest password.'
-    default nil
-  end
-
-  option :course do
-    short   '-c'
-    long    '--course=COURSE'
-    desc    'Course ID (eg CS241)'
-    default nil
-  end
-
-  option :filename do
-    short   '-f'
-    long    '--filename=FILENAME'
-    desc    'The file to submit to marmoset'
-  end
-
-  option :question do
-    short   '-q'
-    long    '--question=QUESTION'
-    desc    'Marmoset submission question name (eg A3P2 or A3Q2)'
-    default nil
-  end
-
-  option :submissiontime do
-    short   '-t'
-    long    '--submissiontime=SUBMISSIONTIME'
-    desc    'Marmoset submission time in 24hr format (eg 06/01/2017 21:00)'
-    default nil
-  end
-
-  option :help do
-    short   '-t'
-    long '--help'
-    desc 'All arguments are required except for -t / --submissiontime. Use -t ' \
-         'if you would like to submit your assignment at a particular time.'
-  end
 end
 
 client = MarmosetSubmit.new(Choice.choices)
