@@ -1,8 +1,6 @@
-require 'io/console'
 require 'mechanize'
-#require 'highline'
+require 'highline'
 require 'choice'
-
 require_relative 'cli_options'
 
 class MarmosetSubmit
@@ -13,6 +11,7 @@ class MarmosetSubmit
 
   def initialize(args)
     @agent                  = Mechanize.new
+    @cli                    = HighLine.new
     @base_url               = 'https://marmoset.student.cs.uwaterloo.ca'
 
     # Used for navigating between functions
@@ -21,7 +20,7 @@ class MarmosetSubmit
     @question_submit_hash   = {}
     @question_overview_hash = {}
 
-    # user-specified arguments
+    # User-specified arguments
     @username               = args[:username]
     @password               = args[:password]
     @course                 = args[:course]
@@ -31,15 +30,8 @@ class MarmosetSubmit
   end
 
   def login
-    if @username == nil
-      print 'Username: '
-      @username = STDIN.gets.chomp
-    end
-    if @password == nil
-      print 'Password: '
-      #@password = STDIN.noecho(&:gets).chomp
-      @password = STDIN.gets.chomp
-    end
+    @username ||= @cli.ask 'Username: '
+    @password ||= @cli.ask 'Password: '
 
     puts "Logging in as user #{@username}"
 
@@ -62,7 +54,6 @@ class MarmosetSubmit
   end
 
   def select_course
-
     course_links = @course_index_page.links.find_all do |link|
       link.href.include? 'course.jsp'
     end
@@ -72,8 +63,7 @@ class MarmosetSubmit
       course_links.each do |course_link|
         puts course_link.text.strip.chomp ':'
       end
-      puts 'Please enter the Course ID you would like to submit your assignment to (eg CS241):'
-      @course = STDIN.gets.chomp
+      @course = @cli.ask('Please enter the Course ID you would like to submit your assignment to (eg CS241): ')
     end
 
     @course = @course.upcase
@@ -97,11 +87,7 @@ class MarmosetSubmit
   end
 
   def select_question
-    if @question == nil
-      print 'Question (eg A3P2): '
-      @question = STDIN.gets.chomp
-    end
-
+    @question ||= @cli.ask 'Question (eg A3P2): '
     @question = @question.upcase
 
     # question_submit_hash['A3P2'] => #<Mechanize::Page::Link "path-to-submission-link">
@@ -120,22 +106,18 @@ class MarmosetSubmit
 
   rescue QuestionNotFound
     puts "Question #{@question} not found. Here are the questions available:"
-    puts filtered_questions.join(', ')
+    puts filtered_questions.join ', '
     exit
   end
 
   def submit_question
-
-    if @filename.nil?
-      print 'Filename: '
-      @filename = STDIN.gets.chomp
-    end
+    @filename ||= @cli.ask 'Filename: '
 
     puts "Submitting #{@question}..."
 
     form = @submission_page.forms.first
     form.file_uploads.first.file_name = @filename
-    @agent.submit(form)
+    @agent.submit form
 
     puts "#{@question} has been successfully uploaded to Marmoset."
 
@@ -179,9 +161,8 @@ class MarmosetSubmit
 
   def release_test
     question_stats = get_question_stats
-    puts "Would you like to release test this submission?",
-         "You have #{question_stats['release_tokens']} tokens left (Y/N)"
-    answer = STDIN.gets.chomp
+    answer = @cli.ask 'Would you like to release test this submission? ' \
+    "You have #{question_stats['release_tokens']} tokens left (Y/N)"
     exit if answer.upcase == 'N'
     raise NoReleaseTokens if question_stats['release_tokens'] == 0
 
