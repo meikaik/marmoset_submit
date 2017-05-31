@@ -1,9 +1,8 @@
 require 'io/console'
-require 'rubygems'
 require 'mechanize'
-require 'highline'
+#require 'highline'
 require 'choice'
-require 'nokogiri'
+
 require_relative 'cli_options'
 
 class MarmosetSubmit
@@ -183,11 +182,11 @@ class MarmosetSubmit
     puts "Would you like to release test this submission?",
          "You have #{question_stats['release_tokens']} tokens left (Y/N)"
     answer = STDIN.gets.chomp
-    exit if answer.upcase = 'N'
+    exit if answer.upcase == 'N'
     raise NoReleaseTokens if question_stats['release_tokens'] == 0
 
   rescue NoReleaseTokens
-    puts "Sorry, you have 0 release tokens for #{@question}. Your tokens will regenerate in:"
+    puts "Sorry, you have 0 release tokens for #{@question}. Your tokens will regenerate at:"
     puts question_stats['release_token_regeneration']
   end
 
@@ -195,12 +194,7 @@ class MarmosetSubmit
 
   end
 
-  # returns Hash{
-  #              public_test:
-  #              release_test:
-  #              release_tokens:
-  #              release_token_regeneration: []
-  # }
+  # returns a hash with keys: public_test, release_test, release_tokens, release_token_regeneration
   def get_question_stats
     question_stats = {}
     question_overview = @base_url + @question_overview_hash[@question].href
@@ -225,7 +219,7 @@ class MarmosetSubmit
   end
 
 
-  def tokens(question)
+  def tokens
 
   end
 
