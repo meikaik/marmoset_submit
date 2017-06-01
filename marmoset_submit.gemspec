@@ -8,7 +8,7 @@ Gem::Specification.new do |s|
   s.email        = 'mkkoh@uwaterloo.ca'
   s.homepage     = 'http://rubygems.org/gems/marmoset_submit'
   s.license      = 'MIT'
-  s.files        = ['lib/marmoset.rb']
+  s.files        = ['lib/marmoset_submit.rb']
 
   s.add_runtime_dependency 'mechanize', ['>= 2.7.5']
   s.add_development_dependency 'mechanize', ['>= 2.7.5']

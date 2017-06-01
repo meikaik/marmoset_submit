@@ -4,6 +4,7 @@ class Marmoset
   class FailedLogin < StandardError; end
   class CourseNotFound < StandardError; end
   class QuestionNotFound < StandardError; end
+  class FileNotFound < StandardError; end
   class NoReleaseTokens < StandardError; end
 
   def initialize(args)
@@ -17,8 +18,8 @@ class Marmoset
     @question_overview_hash = {}
 
     # User-specified arguments
-    @username               = args[:username]
-    @password               = args[:password]
+    @username               = ENV['UWID'] || args[:username]
+    @password               = ENV['UWPASS'] || args[:password]
     @course                 = args[:course]
     @filename               = args[:filename]
     @question               = args[:question]
@@ -155,6 +156,9 @@ class Marmoset
     @agent.get question_overview
     view_links = @agent.page.links.find_all{|link| link.text.include? 'view'}
     detailed_test_results = view_links.first.click
+
+    raise NoReleaseTokens if question_stats['release_tokens'].to_i == 0
+
     answer = ask 'Would you like to release test this submission? ' \
     "You have #{question_stats['release_tokens']} tokens left (Y/N)"
     if answer.upcase == 'Y'
@@ -166,7 +170,6 @@ class Marmoset
     else
       exit
     end
-    raise NoReleaseTokens if question_stats['release_tokens'] == 0
 
   rescue NoReleaseTokens
     puts "Sorry, you have 0 release tokens for #{@question}. Your tokens will regenerate at:"
