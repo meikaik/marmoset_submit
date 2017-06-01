@@ -12,8 +12,8 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency 'mechanize', ['>= 2.7.5']
   s.add_development_dependency 'mechanize', ['>= 2.7.5']
-  s.add_runtime_dependency 'highline', ['>= 1.7.8']
-  s.add_development_dependency 'highline', ['>= 1.7.8']
+  s.add_runtime_dependency 'commander', ['>= 4.4.3']
+  s.add_development_dependency 'commander', ['>= 4.4.3']
   s.add_runtime_dependency 'choice', ['>= 0.2.0']
   s.add_development_dependency 'choice', ['>= 0.2.0']
 end
