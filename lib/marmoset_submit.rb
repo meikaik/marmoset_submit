@@ -1,17 +1,17 @@
 require 'mechanize'
-require 'highline'
+require 'commander'
 require 'choice'
 require_relative 'cli_options'
 
 class MarmosetSubmit
-  class InvalidLogin < StandardError; end
+  include Commander::Methods
+  class FailedLogin < StandardError; end
   class CourseNotFound < StandardError; end
   class QuestionNotFound < StandardError; end
   class NoReleaseTokens < StandardError; end
 
   def initialize(args)
     @agent                  = Mechanize.new
-    @cli                    = HighLine.new
     @base_url               = 'https://marmoset.student.cs.uwaterloo.ca'
 
     # Used for navigating between functions
@@ -27,11 +27,12 @@ class MarmosetSubmit
     @filename               = args[:filename]
     @question               = args[:question]
     @submissiontime         = args[:submissiontime]
+    @release                = args[:release]
   end
 
   def login
-    @username ||= @cli.ask 'Username: '
-    @password ||= @cli.ask 'Password: '
+    @username ||= ask 'Username: '
+    @password ||= password 'Password: ', '*'
 
     puts "Logging in as user #{@username}"
 
@@ -44,11 +45,11 @@ class MarmosetSubmit
     login_submit_page = @agent.submit form
 
     if login_submit_page.uri.to_s.include? 'cas.uwaterloo.ca'
-      raise InvalidLogin
+      raise FailedLogin
     end
 
     @course_index_page = @agent.submit login_submit_page.forms.first
-  rescue InvalidLogin
+  rescue FailedLogin
     puts 'Invalid Username/Password.'
     exit
   end
@@ -63,7 +64,7 @@ class MarmosetSubmit
       course_links.each do |course_link|
         puts course_link.text.strip.chomp ':'
       end
-      @course = @cli.ask('Please enter the Course ID you would like to submit your assignment to (eg CS241): ')
+      @course = ask 'Please enter the Course ID you would like to submit your assignment to (eg CS241): '
     end
 
     @course = @course.upcase
@@ -87,7 +88,7 @@ class MarmosetSubmit
   end
 
   def select_question
-    @question ||= @cli.ask 'Question (eg A3P2): '
+    @question ||= ask 'Question (eg A3P2): '
     @question = @question.upcase
 
     # question_submit_hash['A3P2'] => #<Mechanize::Page::Link "path-to-submission-link">
@@ -110,8 +111,10 @@ class MarmosetSubmit
     exit
   end
 
+  #################  PROGRAM WILL ALWAYS EXECUTE UNTIL THIS POINT REGARDLESS of -release or -submit  #################
+
   def submit_question
-    @filename ||= @cli.ask 'Filename: '
+    @filename ||= ask 'Filename: '
 
     puts "Submitting #{@question}..."
 
@@ -129,10 +132,11 @@ class MarmosetSubmit
   def view_public_test
     question_overview = @base_url + @question_overview_hash[@question].href
     public_test_score = 'nottestedyet'
-    while public_test_score == 'nottestedyet'
+    loop do
       @agent.get question_overview
       html = Nokogiri::XML @agent.page.body
       public_test_score = html.xpath('//tr[1]/td[3]').text.gsub!(/[^0-9A-Za-z\/]/, '')
+      break if  public_test_score != 'nottestedyet'
       sleep 3
     end
 
@@ -161,18 +165,26 @@ class MarmosetSubmit
 
   def release_test
     question_stats = get_question_stats
-    answer = @cli.ask 'Would you like to release test this submission? ' \
+    question_overview = @base_url + @question_overview_hash[@question].href
+    @agent.get question_overview
+    view_links = @agent.page.links.find_all{|link| link.text.include? 'view'}
+    detailed_test_results = view_links.first.click
+    answer = ask 'Would you like to release test this submission? ' \
     "You have #{question_stats['release_tokens']} tokens left (Y/N)"
-    exit if answer.upcase == 'N'
+    if answer.upcase == 'Y'
+      confirmation_page = detailed_test_results.links.last.click
+      confirmation_page.form.submit
+      sleep 0.5
+      question_stats = get_question_stats
+      puts "Release test score: #{question_stats['release_test']}"
+    else
+      exit
+    end
     raise NoReleaseTokens if question_stats['release_tokens'] == 0
 
   rescue NoReleaseTokens
     puts "Sorry, you have 0 release tokens for #{@question}. Your tokens will regenerate at:"
     puts question_stats['release_token_regeneration']
-  end
-
-  def token_overview
-
   end
 
   # returns a hash with keys: public_test, release_test, release_tokens, release_token_regeneration
@@ -199,10 +211,15 @@ class MarmosetSubmit
     return question_stats
   end
 
+  def token_overview
+
+  end
+
 
   def tokens
 
   end
+
 
 end
 
@@ -210,5 +227,10 @@ client = MarmosetSubmit.new(Choice.choices)
 client.login
 client.select_course
 client.select_question
-#client.submit_question
-client.view_public_test
+if Choice[:release]
+  # after verifying public test score, view_public_test calls release_test
+  client.view_public_test
+else
+  client.submit_question
+  client.view_public_test
+end

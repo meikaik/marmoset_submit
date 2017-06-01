@@ -33,17 +33,24 @@ Choice.options do
 		default nil
 	end
 
+
 	option :submissiontime do
 		short   '-t'
 		long    '--submissiontime=SUBMISSIONTIME'
 		desc    'Marmoset submission time in 24hr format (eg 06/01/2017 21:00)'
 		default nil
+  end
+
+	option :release do
+		short   '-r'
+		long    '--release'
+		desc    'Flag to release test a specific question'
+		default false
 	end
 
 	option :help do
 		short   '-t'
 		long '--help'
-		desc 'All arguments are required except for -t / --submissiontime. Use -t ' \
-         'if you would like to submit your assignment at a particular time.'
+		desc 'Help page'
 	end
 end
