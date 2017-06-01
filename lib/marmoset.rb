@@ -209,14 +209,5 @@ private
     puts 'Error: ', error
   end
 
-  # Future methods
-  # def token_overview
-  #
-  # end
-  #
-  #
-  # def tokens
-  #
-  # end
 
 end
