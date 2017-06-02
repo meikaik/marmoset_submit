@@ -35,8 +35,8 @@ marmoset_submit -r -u QUESTID -p PASSWORD -c COURSEID -q QUESTION
 * `-t` - allows user to specify submission time when there are no release tokens available
 
 ### Misc
-* To prevent marmoset_submit from prompting you to type your username and password everytime you login, run:
+* To prevent marmoset_submit from prompting you to type your username and password:
 ```
-echo echo 'export UWID=yourusername' >> ~/.bash_profile
-echo echo 'export UWPASS=yourpassword' >> ~/.bash_profile
+echo 'export UWID=yourusername' >> ~/.bash_profile
+echo 'export UWPASS=yourpassword' >> ~/.bash_profile
 ```
